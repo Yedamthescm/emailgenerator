@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>해외마케팅본부 실적 이메일 생성기</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;
+    background: #f0f2f5;
+    color: #333;
+    padding: 20px;
+  }
+  .container {
+    max-width: 800px;
+    margin: 0 auto;
+  }
+  h1 {
+    text-align: center;
+    margin-bottom: 30px;
+    color: #1a1a2e;
+    font-size: 22px;
+  }
+  .section {
+    background: #fff;
+    border-radius: 12px;
+    padding: 24px;
+    margin-bottom: 20px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  }
+  .section h2 {
+    font-size: 16px;
+    color: #1a1a2e;
+    margin-bottom: 16px;
+    padding-bottom: 8px;
+    border-bottom: 2px solid #e8e8e8;
+  }
+  .input-group {
+    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .input-group label {
+    min-width: 120px;
+    font-weight: 600;
+    font-size: 14px;
+    color: #555;
+  }
+  .input-group input, .input-group textarea {
+    flex: 1;
+    padding: 10px 12px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    font-size: 14px;
+    font-family: inherit;
+    transition: border-color 0.2s;
+  }
+  .input-group input:focus, .input-group textarea:focus {
+    outline: none;
+    border-color: #4a6cf7;
+  }
+  .output-block {
+    margin-bottom: 16px;
+  }
+  .output-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 6px;
+  }
+  .output-header label {
+    font-weight: 600;
+    font-size: 14px;
+    color: #555;
+  }
+  .output-content {
+    background: #f8f9fa;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    padding: 12px;
+    font-size: 13px;
+    line-height: 1.7;
+    white-space: pre-wrap;
+    word-break: break-all;
+    min-height: 40px;
+  }
+  .btn-group {
+    display: flex;
+    gap: 6px;
+  }
+  .copy-btn, .edit-btn {
+    border: none;
+    border-radius: 6px;
+    padding: 6px 14px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .copy-btn {
+    background: #eef2ff;
+    color: #4a6cf7;
+    border: 1px solid #c7d2fe;
+  }
+  .copy-btn:hover { background: #dbeafe; }
+  .copy-btn.copied {
+    background: #dcfce7;
+    color: #16a34a;
+    border-color: #bbf7d0;
+  }
+  .edit-btn {
+    background: #fdf2f8;
+    color: #db2777;
+    border: 1px solid #fbcfe8;
+  }
+  .edit-btn:hover { background: #fce7f3; }
+  .edit-btn.editing {
+    background: #fce7f3;
+    color: #be185d;
+  }
+  .output-content[contenteditable="true"] {
+    outline: 2px solid #f9a8d4;
+    background: #fff;
+  }
+  .date-display {
+    background: #eef2ff;
+    padding: 8px 14px;
+    border-radius: 8px;
+    font-size: 14px;
+    color: #4a6cf7;
+    font-weight: 600;
+    display: inline-block;
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>해외마케팅본부 실적 이메일 생성기</h1>
+
+  <div class="section">
+    <h2>입력</h2>
+    <div class="input-group">
+      <label>날짜</label>
+      <input type="date" id="dateInput">
+      <span class="date-display" id="dateDisplay"></span>
+    </div>
+    <div class="input-group">
+      <label>변경 사항</label>
+      <input type="text" id="priceComment" value="튀는 단가 없습니다.">
+    </div>
+    <div class="input-group">
+      <label>당일 수주</label>
+      <input type="text" id="dailyOrder" placeholder="예: 17억">
+    </div>
+    <div class="input-group">
+      <label>당일 누계 수주</label>
+      <input type="text" id="cumOrder" placeholder="예: 96억">
+    </div>
+    <div class="input-group">
+      <label>당월 누적 빌링</label>
+      <input type="text" id="billing" placeholder="예: 64억">
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>결과</h2>
+
+    <div class="output-block">
+      <div class="output-header">
+        <label>받는사람</label>
+        <div class="btn-group">
+          <button class="copy-btn" onclick="copyText('outTo', this)">복사</button>
+          <button class="edit-btn" onclick="toggleEdit('outTo', this)">수정</button>
+        </div>
+      </div>
+      <div class="output-content" id="outTo">이병주</div>
+    </div>
+
+    <div class="output-block">
+      <div class="output-header">
+        <label>참조</label>
+        <div class="btn-group">
+          <button class="copy-btn" onclick="copyText('outCc', this)">복사</button>
+          <button class="edit-btn" onclick="toggleEdit('outCc', this)">수정</button>
+        </div>
+      </div>
+      <div class="output-content" id="outCc">"김용규 (Yonggyu Kim) COSMAX BTI" <yonggyu.kim@cosmax.com>; "서미숙 (Alley Suh) COSMAX BTI" <mssuh@cosmax.com>; "유재청 (JC Lyu) COSMAX BTI" <jclyu@cosmax.com>; "장수민 (Sue Jang) COSMAX BTI" <suejang@cosmax.com>; "유나연 (Natalie Yoo) COSMAX BTI" <nayeon.yoo@cosmax.com>; "강선모 (James Kang) COSMAX BTI" <smkang@cosmax.com>; "전대린 (Daerin Jeon) COSMAX BTI" <drswat@cosmax.com>; "이준우 (Andrew Lee) COSMAX BTI" <leejw@cosmax.com>; "강민영 (Amy Kang) COSMAX BTI" <amy.kang@cosmax.com>; "안소현 (Sohyun Ahn) COSMAX BTI" <sohyun.ahn@cosmax.com>; "임성민 (Sungmin Lim) COSMAX BTI" <smlim@cosmax.com>; "김지연 (Claire Kim) COSMAX BTI" <jiyeon.kim@cosmax.com>; "장유정 (Stella Jang) COSMAX BTI" <yoojung.jang@cosmax.com>; "김예담 (Iris Kim) COSMAX BTI" <yedam.kim@cosmax.com>; "김태은 (Taeeun Kim) COSMAX BTI" <kimte@cosmax.com>; "노경민 (Min Roh) COSMAX BTI" <kmroh@cosmax.com>; "고연서 (Yeonseo Koh) COSMAX BTI" <yeonseo.koh@cosmax.com>; "박진성 (Jinsung Park) COSMAX BTI" <jinsungpark@cosmax.com>; "Park Geun Mo (Danny Park) COSMAX" <Geun.Park@cosmax.com></div>
+    </div>
+
+    <div class="output-block">
+      <div class="output-header">
+        <label>이메일 제목</label>
+        <div class="btn-group">
+          <button class="copy-btn" onclick="copyText('outSubject', this)">복사</button>
+          <button class="edit-btn" onclick="toggleEdit('outSubject', this)">수정</button>
+        </div>
+      </div>
+      <div class="output-content" id="outSubject"></div>
+    </div>
+
+    <div class="output-block">
+      <div class="output-header">
+        <label>이메일 내용</label>
+        <div class="btn-group">
+          <button class="copy-btn" onclick="copyText('outBody', this)">복사</button>
+          <button class="edit-btn" onclick="toggleEdit('outBody', this)">수정</button>
+        </div>
+      </div>
+      <div class="output-content" id="outBody"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
+
+function getAutoDate() {
+  const today = new Date();
+  const dow = today.getDay(); // 0=Sun,1=Mon,...6=Sat
+  if (dow === 1) {
+    // Monday → last Friday (subtract 3 days)
+    today.setDate(today.getDate() - 3);
+  } else if (dow === 0) {
+    // Sunday → last Friday (subtract 2 days)
+    today.setDate(today.getDate() - 2);
+  } else if (dow === 6) {
+    // Saturday → last Friday (subtract 1 day)
+    today.setDate(today.getDate() - 1);
+  } else {
+    // Tue-Fri → subtract 1 day
+    today.setDate(today.getDate() - 1);
+  }
+  return today;
+}
+
+function formatDateInput(d) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function updateOutput() {
+  const dateVal = document.getElementById('dateInput').value;
+  const d = new Date(dateVal + 'T00:00:00');
+  const month = d.getMonth() + 1;
+  const date = d.getDate();
+  const dow = dayNames[d.getDay()];
+  const year = d.getFullYear();
+  const prevMonth = month === 1 ? 12 : month - 1;
+
+  // Date display
+  document.getElementById('dateDisplay').textContent =
+    `${year}년 ${month}월 ${date}일 (${dow})`;
+
+  // Subject
+  document.getElementById('outSubject').textContent =
+    `[공유] 해외마케팅본부 ${month}/${date}(${dow}) 실적 - 수주 & 빌링`;
+
+  // Body
+  const priceComment = document.getElementById('priceComment').value || '튀는 단가 없습니다.';
+  const dailyOrder = document.getElementById('dailyOrder').value || '___';
+  const cumOrder = document.getElementById('cumOrder').value || '___';
+  const billing = document.getElementById('billing').value || '___';
+
+  const shortYear = String(year).slice(2);
+
+  const body = `안녕하세요,\n해외 SCM팀 김예담입니다.\n해외마케팅 본부 '${shortYear}년 ${month}월 ${date}일자 실적 공유 드립니다.\n${priceComment}\n\n\n<${prevMonth}월>\n당일 수주 = ${dailyOrder}\n당일 누계 수주 = ${cumOrder}\n\n\n<${month}월>\n당월 누적 빌링 = ${billing}`;
+
+  document.getElementById('outBody').textContent = body;
+}
+
+function toggleEdit(id, btn) {
+  const el = document.getElementById(id);
+  const isEditing = el.contentEditable === 'true';
+  if (isEditing) {
+    el.contentEditable = 'false';
+    btn.textContent = '수정';
+    btn.classList.remove('editing');
+  } else {
+    el.contentEditable = 'true';
+    el.focus();
+    btn.textContent = '완료';
+    btn.classList.add('editing');
+  }
+}
+
+function copyText(id, btn) {
+  const text = document.getElementById(id).textContent;
+  navigator.clipboard.writeText(text).then(() => {
+    btn.textContent = '복사됨!';
+    btn.classList.add('copied');
+    setTimeout(() => {
+      btn.textContent = '복사';
+      btn.classList.remove('copied');
+    }, 1500);
+  });
+}
+
+// Init
+const autoDate = getAutoDate();
+document.getElementById('dateInput').value = formatDateInput(autoDate);
+updateOutput();
+
+// Event listeners
+document.getElementById('dateInput').addEventListener('change', updateOutput);
+document.getElementById('priceComment').addEventListener('input', updateOutput);
+document.getElementById('dailyOrder').addEventListener('input', updateOutput);
+document.getElementById('cumOrder').addEventListener('input', updateOutput);
+document.getElementById('billing').addEventListener('input', updateOutput);
+</script>
+</body>
+</html>
