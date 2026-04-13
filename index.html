@@ -4,6 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>해외마케팅본부 실적 이메일 생성기</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
@@ -60,6 +62,9 @@
   .input-group input:focus, .input-group textarea:focus {
     outline: none;
     border-color: #4a6cf7;
+  }
+  .input-group input[type="file"] {
+    padding: 8px;
   }
   .output-block {
     margin-bottom: 16px;
@@ -132,6 +137,96 @@
     font-weight: 600;
     display: inline-block;
   }
+  /* Pivot table styles - Excel 캡처 스타일 */
+  .pivot-wrapper {
+    margin: 10px 0;
+    display: inline-block;
+    background: #fff;
+    padding: 0;
+  }
+  .pivot-title {
+    font-weight: 700;
+    font-size: 12px;
+    font-family: 'Malgun Gothic', '맑은 고딕', sans-serif;
+    padding: 4px 2px;
+    color: #000;
+    border-bottom: 1px solid #d0d0d0;
+  }
+  .pivot-table {
+    border-collapse: collapse;
+    font-family: 'Malgun Gothic', '맑은 고딕', sans-serif;
+    font-size: 11px;
+    background: #fff;
+    width: 100%;
+  }
+  .pivot-table th, .pivot-table td {
+    border: 1px solid #d0d0d0;
+    padding: 2px 6px;
+    color: #000;
+  }
+  .pivot-table th {
+    background: #c4d9ed;
+    font-weight: 700;
+    text-align: left;
+    border-bottom: 1px solid #999;
+  }
+  .pivot-table th.col-name {
+    min-width: 340px;
+  }
+  .pivot-table th.col-amount {
+    min-width: 120px;
+    text-align: right;
+  }
+  .pivot-table td.name {
+    text-align: left;
+    background: #fff;
+  }
+  .pivot-table td.name.customer {
+    font-weight: 700;
+  }
+  .pivot-table td.name.sub-item {
+    padding-left: 20px;
+    font-weight: 400;
+  }
+  .pivot-table td.amount {
+    text-align: right;
+    background: #fff;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  .pivot-table td.amount.customer-amount {
+    font-weight: 700;
+  }
+  .pivot-table tr.total td {
+    font-weight: 700;
+    background: #c4d9ed;
+    border-top: 2px solid #000;
+  }
+  .pivot-note {
+    font-size: 10px;
+    color: #666;
+    text-align: right;
+    padding: 2px 2px 0 0;
+    font-family: 'Malgun Gothic', '맑은 고딕', sans-serif;
+  }
+  #pivotPreview {
+    margin-top: 10px;
+    padding: 10px;
+    background: #f8f9fa;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    display: none;
+  }
+  #pivotPreview h3 {
+    font-size: 14px;
+    margin-bottom: 8px;
+    color: #555;
+  }
+  #pivotImageContainer img {
+    max-width: 100%;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+  }
 </style>
 </head>
 <body>
@@ -140,6 +235,10 @@
 
   <div class="section">
     <h2>입력</h2>
+    <div class="input-group">
+      <label>발신자</label>
+      <input type="text" id="senderName" value="해외 SCM팀 김예담">
+    </div>
     <div class="input-group">
       <label>날짜</label>
       <input type="date" id="dateInput">
@@ -158,8 +257,19 @@
       <input type="text" id="cumOrder" placeholder="예: 96억">
     </div>
     <div class="input-group">
+      <label>당일 빌링</label>
+      <input type="text" id="dailyBilling" placeholder="예: 5억">
+    </div>
+    <div class="input-group">
       <label>당월 누적 빌링</label>
       <input type="text" id="billing" placeholder="예: 64억">
+    </div>
+    <div class="input-group">
+      <label>엑셀 파일</label>
+      <input type="file" id="excelFile" accept=".xlsx,.xls">
+    </div>
+    <div id="pivotPreview" style="display:none;">
+      <div id="pivotRender"></div>
     </div>
   </div>
 
@@ -209,26 +319,24 @@
       </div>
       <div class="output-content" id="outBody"></div>
     </div>
+
   </div>
 </div>
 
 <script>
 const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
+let pivotImageDataUrl = null;
 
 function getAutoDate() {
   const today = new Date();
-  const dow = today.getDay(); // 0=Sun,1=Mon,...6=Sat
+  const dow = today.getDay();
   if (dow === 1) {
-    // Monday → last Friday (subtract 3 days)
     today.setDate(today.getDate() - 3);
   } else if (dow === 0) {
-    // Sunday → last Friday (subtract 2 days)
     today.setDate(today.getDate() - 2);
   } else if (dow === 6) {
-    // Saturday → last Friday (subtract 1 day)
     today.setDate(today.getDate() - 1);
   } else {
-    // Tue-Fri → subtract 1 day
     today.setDate(today.getDate() - 1);
   }
   return today;
@@ -241,6 +349,11 @@ function formatDateInput(d) {
   return `${y}-${m}-${day}`;
 }
 
+function formatKRW(num) {
+  if (typeof num !== 'number' || isNaN(num)) return String(num);
+  return '₩ ' + Math.round(num).toLocaleString('ko-KR');
+}
+
 function updateOutput() {
   const dateVal = document.getElementById('dateInput').value;
   const d = new Date(dateVal + 'T00:00:00');
@@ -248,27 +361,30 @@ function updateOutput() {
   const date = d.getDate();
   const dow = dayNames[d.getDay()];
   const year = d.getFullYear();
-  const prevMonth = month === 1 ? 12 : month - 1;
 
-  // Date display
+
   document.getElementById('dateDisplay').textContent =
     `${year}년 ${month}월 ${date}일 (${dow})`;
 
-  // Subject
   document.getElementById('outSubject').textContent =
     `[공유] 해외마케팅본부 ${month}/${date}(${dow}) 실적 - 수주 & 빌링`;
 
-  // Body
   const priceComment = document.getElementById('priceComment').value || '튀는 단가 없습니다.';
   const dailyOrder = document.getElementById('dailyOrder').value || '___';
   const cumOrder = document.getElementById('cumOrder').value || '___';
+  const dailyBilling = document.getElementById('dailyBilling').value || '___';
   const billing = document.getElementById('billing').value || '___';
 
   const shortYear = String(year).slice(2);
 
-  const body = `안녕하세요,\n해외 SCM팀 김예담입니다.\n해외마케팅 본부 '${shortYear}년 ${month}월 ${date}일자 실적 공유 드립니다.\n${priceComment}\n\n\n<${prevMonth}월>\n당일 수주 = ${dailyOrder}\n당일 누계 수주 = ${cumOrder}\n\n\n<${month}월>\n당월 누적 빌링 = ${billing}`;
+  const imgTag = pivotImageDataUrl
+    ? `<img src="${pivotImageDataUrl}" style="max-width:100%; margin:8px 0; display:block;">`
+    : '<span style="color:#999;">[엑셀 파일을 업로드하면 수주량 테이블이 여기에 표시됩니다]</span>';
 
-  document.getElementById('outBody').textContent = body;
+  const senderName = document.getElementById('senderName').value || '해외 SCM팀 김예담';
+  const bodyHtml = `안녕하세요,<br>${senderName}입니다.<br>해외마케팅 본부 '${shortYear}년 ${month}월 ${date}일자 실적 공유 드립니다.<br>${priceComment}<br><br><br>&lt;${month}월&gt;<br>당일 수주 = ${dailyOrder}<br>${imgTag}<br>당일 누계 수주 = ${cumOrder}<br><br><br>&lt;${month}월&gt;<br>당일 빌링 = ${dailyBilling}<br>당월 누적 빌링 = ${billing}`;
+
+  document.getElementById('outBody').innerHTML = bodyHtml;
 }
 
 function toggleEdit(id, btn) {
@@ -287,15 +403,169 @@ function toggleEdit(id, btn) {
 }
 
 function copyText(id, btn) {
-  const text = document.getElementById(id).textContent;
-  navigator.clipboard.writeText(text).then(() => {
-    btn.textContent = '복사됨!';
-    btn.classList.add('copied');
+  const el = document.getElementById(id);
+
+  if (id === 'outBody') {
+    // 이메일 내용은 이미지 포함 리치 HTML로 복사
+    const htmlContent = el.innerHTML;
+    const textContent = el.textContent;
+    const blob = new Blob([htmlContent], { type: 'text/html' });
+    const textBlob = new Blob([textContent], { type: 'text/plain' });
+    navigator.clipboard.write([
+      new ClipboardItem({
+        'text/html': blob,
+        'text/plain': textBlob
+      })
+    ]).then(() => {
+      btn.textContent = '복사됨!';
+      btn.classList.add('copied');
+      setTimeout(() => {
+        btn.textContent = '복사';
+        btn.classList.remove('copied');
+      }, 1500);
+    });
+  } else {
+    const text = el.textContent;
+    navigator.clipboard.writeText(text).then(() => {
+      btn.textContent = '복사됨!';
+      btn.classList.add('copied');
+      setTimeout(() => {
+        btn.textContent = '복사';
+        btn.classList.remove('copied');
+      }, 1500);
+    });
+  }
+}
+
+function copyPivotImage(btn) {
+  const img = document.getElementById('pivotImageResult');
+  const canvas = document.createElement('canvas');
+  canvas.width = img.naturalWidth;
+  canvas.height = img.naturalHeight;
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(img, 0, 0);
+  canvas.toBlob(blob => {
+    navigator.clipboard.write([new ClipboardItem({'image/png': blob})]).then(() => {
+      btn.textContent = '복사됨!';
+      btn.classList.add('copied');
+      setTimeout(() => {
+        btn.textContent = '이미지 복사';
+        btn.classList.remove('copied');
+      }, 1500);
+    });
+  }, 'image/png');
+}
+
+function downloadPivotImage() {
+  if (!pivotImageDataUrl) return;
+  const a = document.createElement('a');
+  a.href = pivotImageDataUrl;
+  a.download = '수주량_테이블.png';
+  a.click();
+}
+
+function processExcel(file) {
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const data = new Uint8Array(e.target.result);
+    const workbook = XLSX.read(data, {type: 'array'});
+
+    // 1. OPEN PO 시트에서 고객사별 합계와 제목, 총합계, 환율 읽기
+    const openPoName = workbook.SheetNames.find(n => n.includes('OPEN PO'));
+    if (!openPoName) {
+      alert('OPEN PO 시트를 찾을 수 없습니다.');
+      return;
+    }
+    const openPo = workbook.Sheets[openPoName];
+    const openPoRange = XLSX.utils.decode_range(openPo['!ref']);
+
+    const title = openPo['A1'] ? openPo['A1'].v : '';
+    const customers = []; // {name, amount} 순서대로
+    let totalRow = null;
+    let noteText = '';
+
+    for (let r = 2; r <= openPoRange.e.r; r++) {
+      const cellA = openPo[XLSX.utils.encode_cell({r: r, c: 0})];
+      const cellB = openPo[XLSX.utils.encode_cell({r: r, c: 1})];
+      if (!cellA) continue;
+      const val = String(cellA.v).trim();
+      if (val === '고객사' || val === '') continue;
+      if (val === '총합계') {
+        totalRow = { name: val, amount: cellB ? cellB.v : 0 };
+        const noteCell = openPo[XLSX.utils.encode_cell({r: r + 1, c: 1})];
+        if (noteCell) noteText = String(noteCell.v).trim();
+        break;
+      }
+      customers.push({ name: val, amount: cellB ? cellB.v : 0 });
+    }
+
+    // 2. Raw_Daily 시트에서 하위 항목 읽기 (D=고객사, I=내역, R=금액)
+    const rawName = workbook.SheetNames.find(n => n.includes('Raw_Daily'));
+    const subItems = {}; // { 고객사: [{item, amount}] }
+
+    if (rawName) {
+      const rawSheet = workbook.Sheets[rawName];
+      const rawRange = XLSX.utils.decode_range(rawSheet['!ref']);
+
+      for (let r = 1; r <= rawRange.e.r; r++) {
+        const cellD = rawSheet[XLSX.utils.encode_cell({r: r, c: 3})]; // D열 (고객사)
+        const cellI = rawSheet[XLSX.utils.encode_cell({r: r, c: 8})]; // I열 (내역)
+        const cellR = rawSheet[XLSX.utils.encode_cell({r: r, c: 17})]; // R열 (금액)
+
+        if (!cellD || !cellI) continue;
+        const custName = String(cellD.v).trim();
+        const itemName = String(cellI.v).trim();
+        const amount = cellR ? cellR.v : 0;
+
+        if (!custName || !itemName || custName === '고객사' || itemName === '내역') continue;
+
+        if (!subItems[custName]) subItems[custName] = [];
+        subItems[custName].push({ item: itemName, amount: amount });
+      }
+    }
+
+    // 3. HTML 테이블 생성 (엑셀 캡처 스타일)
+    let html = `<div class="pivot-wrapper" id="pivotCapture">`;
+    html += `<div class="pivot-title">${title}</div>`;
+    html += `<table class="pivot-table">`;
+    html += `<thead><tr><th class="col-name">고객사</th><th class="col-amount">매출(원)</th></tr></thead>`;
+    html += `<tbody>`;
+
+    for (const cust of customers) {
+      // 고객사 합계 행 (굵게)
+      html += `<tr><td class="name customer">${cust.name}</td><td class="amount customer-amount">${formatKRW(cust.amount)}</td></tr>`;
+
+      // 하위 항목 (들여쓰기, 매출 내림차순)
+      const items = (subItems[cust.name] || []).sort((a, b) => (b.amount || 0) - (a.amount || 0));
+      for (const item of items) {
+        html += `<tr><td class="name sub-item">${item.item}</td><td class="amount">${formatKRW(item.amount)}</td></tr>`;
+      }
+    }
+
+    if (totalRow) {
+      html += `<tr class="total"><td class="name">${totalRow.name}</td><td class="amount">${formatKRW(totalRow.amount)}</td></tr>`;
+    }
+    html += `</tbody></table>`;
+    if (noteText) {
+      html += `<div class="pivot-note">${noteText}</div>`;
+    }
+    html += `</div>`;
+
+    const preview = document.getElementById('pivotPreview');
+    const render = document.getElementById('pivotRender');
+    render.innerHTML = html;
+    preview.style.display = 'block';
+
+    // 이미지로 변환 후 이메일 내용에 삽입
     setTimeout(() => {
-      btn.textContent = '복사';
-      btn.classList.remove('copied');
-    }, 1500);
-  });
+      const el = document.getElementById('pivotCapture');
+      html2canvas(el, { scale: 2, backgroundColor: '#ffffff' }).then(canvas => {
+        pivotImageDataUrl = canvas.toDataURL('image/png');
+        updateOutput(); // 이메일 내용에 이미지 반영
+      });
+    }, 300);
+  };
+  reader.readAsArrayBuffer(file);
 }
 
 // Init
@@ -308,7 +578,14 @@ document.getElementById('dateInput').addEventListener('change', updateOutput);
 document.getElementById('priceComment').addEventListener('input', updateOutput);
 document.getElementById('dailyOrder').addEventListener('input', updateOutput);
 document.getElementById('cumOrder').addEventListener('input', updateOutput);
+document.getElementById('dailyBilling').addEventListener('input', updateOutput);
 document.getElementById('billing').addEventListener('input', updateOutput);
+document.getElementById('senderName').addEventListener('input', updateOutput);
+document.getElementById('excelFile').addEventListener('change', function(e) {
+  if (e.target.files.length > 0) {
+    processExcel(e.target.files[0]);
+  }
+});
 </script>
 </body>
 </html>
