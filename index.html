@@ -712,24 +712,37 @@ function processOpenPO() {
     // W=22:목표매출비고, X=23:최종납품수량, Y=24:최초납품수량, Z=25:CY재고
 
     const header = rows[0];
+    const allowedTypes = ['ZOR1', 'ZKB1', 'ZOR6'];
+    const todayStr = formatDateInput(new Date());
+
     const dataRows = rows.slice(1).filter(r => r[0] && String(r[0]).trim() !== '');
-    // Skip the summary row (row index 1 in original, which has empty SalesDocTy but totals)
+    // A열: ZOR1, ZKB1, ZOR6만 허용 + 오늘 생성일 제외
     const validRows = dataRows.filter(r => {
       const st = String(r[0]).trim();
-      return st.startsWith('ZOR');
+      if (!allowedTypes.includes(st)) return false;
+      // 오늘 날짜 생성일 제외
+      const dateVal = r[1];
+      if (dateVal) {
+        let d;
+        if (dateVal instanceof Date) d = dateVal;
+        else if (typeof dateVal === 'number') d = new Date((dateVal - 25569) * 86400000);
+        else d = new Date(dateVal);
+        if (!isNaN(d.getTime()) && formatDateInput(d) === todayStr) return false;
+      }
+      return true;
     });
 
     // Find the latest 생성일 for daily filter
     let latestDate = null;
     let latestDateStr = '';
     for (const row of validRows) {
-      const dateVal = row[1]; // 생성일
+      const dateVal = row[1];
       if (!dateVal) continue;
       let d;
       if (dateVal instanceof Date) {
         d = dateVal;
       } else if (typeof dateVal === 'number') {
-        d = new Date((dateVal - 25569) * 86400000); // Excel serial date
+        d = new Date((dateVal - 25569) * 86400000);
       } else {
         d = new Date(dateVal);
       }
