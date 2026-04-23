@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>해외마케팅본부 실적 이메일 생성기</title>
-<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -319,6 +319,7 @@
   <div class="tab-nav">
     <button class="tab-btn active" onclick="switchTab('email')">이메일 작성</button>
     <button class="tab-btn" onclick="switchTab('openpo')">Open PO</button>
+    <button class="tab-btn" onclick="switchTab('master')">마스터</button>
   </div>
 
   <!-- ========== 이메일 작성 탭 ========== -->
@@ -417,17 +418,32 @@
         <input type="file" id="openPoFile" accept=".xlsx,.xls">
       </div>
       <div class="input-group">
+        <label>기존 Open PO</label>
+        <input type="file" id="prevOpenPoFile" accept=".xlsx,.xls">
+      </div>
+      <div class="input-group">
         <label>환율 (KRW/USD)</label>
         <input type="number" id="exchangeRate" value="1419" step="1">
       </div>
+      <div class="status-msg" id="mappingStatus"></div>
+      <div class="info-box" id="mappingInfo"></div>
       <button class="download-btn" id="openPoDownloadBtn" onclick="processOpenPO()" disabled>변환 및 다운로드</button>
       <div class="status-msg" id="openPoStatus"></div>
-      <div class="info-box">
-        export 파일을 업로드하면 자동으로 Open PO 파일로 변환됩니다.<br>
-        - <b>OPEN PO</b> 시트: 당일 수주량 + 당월 누적 수주량 요약<br>
-        - <b>Raw_Monthly</b> 시트: 당월 전체 Raw 데이터<br>
-        - <b>Raw_Daily</b> 시트: 당일 Raw 데이터
+      <div class="info-box" id="masterStatusInfo"></div>
+    </div>
+  </div>
+
+  <!-- ========== 마스터 탭 ========== -->
+  <div id="tab-master" class="tab-content">
+    <div class="section">
+      <h2>평균단가 마스터</h2>
+      <div class="input-group">
+        <label>마스터 파일</label>
+        <input type="file" id="masterFile" accept=".xlsx,.xls">
       </div>
+      <div class="status-msg" id="masterStatus"></div>
+      <div id="masterPreview" style="margin-top:12px;"></div>
+      <button class="download-btn" id="masterDeleteBtn" onclick="deleteMaster()" style="background:#ef4444; margin-top:12px; display:none;">저장된 마스터 삭제</button>
     </div>
   </div>
 </div>
@@ -440,13 +456,11 @@ let pivotImageDataUrl = null;
 function switchTab(tab) {
   document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
   document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
-  if (tab === 'email') {
-    document.querySelectorAll('.tab-btn')[0].classList.add('active');
-    document.getElementById('tab-email').classList.add('active');
-  } else {
-    document.querySelectorAll('.tab-btn')[1].classList.add('active');
-    document.getElementById('tab-openpo').classList.add('active');
-  }
+  const tabs = { email: 0, openpo: 1, master: 2 };
+  document.querySelectorAll('.tab-btn')[tabs[tab]].classList.add('active');
+  document.getElementById('tab-' + tab).classList.add('active');
+  if (tab === 'master') renderMasterPreview();
+  if (tab === 'openpo') updateMasterStatusInfo();
 }
 
 // ========== Email tab functions (unchanged) ==========
@@ -682,6 +696,142 @@ function processExcel(file) {
   reader.readAsArrayBuffer(file);
 }
 
+// ========== Master tab functions ==========
+function getMasterData() {
+  try {
+    return JSON.parse(localStorage.getItem('masterPriceData')) || {};
+  } catch { return {}; }
+}
+
+function saveMasterData(data) {
+  localStorage.setItem('masterPriceData', JSON.stringify(data));
+}
+
+function deleteMaster() {
+  localStorage.removeItem('masterPriceData');
+  renderMasterPreview();
+  document.getElementById('masterStatus').className = 'status-msg success';
+  document.getElementById('masterStatus').textContent = '마스터 데이터가 삭제되었습니다.';
+}
+
+function processMasterFile(file) {
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const data = new Uint8Array(e.target.result);
+    const wb = XLSX.read(data, { type: 'array' });
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+
+    const masterData = {};
+    for (const row of rows) {
+      const code = String(row[0] || '').trim();
+      const price = parseFloat(row[1]);
+      // 중분류코드 패턴: 숫자+문자+숫자 (예: 11M04, 13S01)
+      if (/^\d+[A-Z]\d+$/i.test(code) && !isNaN(price)) {
+        masterData[code] = price;
+      }
+    }
+
+    saveMasterData(masterData);
+    const count = Object.keys(masterData).length;
+    document.getElementById('masterStatus').className = 'status-msg success';
+    document.getElementById('masterStatus').textContent = `${count}개 중분류 단가가 저장되었습니다.`;
+    renderMasterPreview();
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function renderMasterPreview() {
+  const data = getMasterData();
+  const keys = Object.keys(data);
+  const container = document.getElementById('masterPreview');
+  const deleteBtn = document.getElementById('masterDeleteBtn');
+
+  if (keys.length === 0) {
+    container.innerHTML = '<div class="info-box">저장된 마스터 데이터가 없습니다. 평균단가 파일을 업로드해주세요.</div>';
+    deleteBtn.style.display = 'none';
+    return;
+  }
+
+  deleteBtn.style.display = 'block';
+  let html = `<table style="width:100%;border-collapse:collapse;font-size:13px;">`;
+  html += `<tr style="background:#eef2ff;"><th style="padding:6px 10px;text-align:left;border-bottom:2px solid #c7d2fe;">중분류코드</th><th style="padding:6px 10px;text-align:right;border-bottom:2px solid #c7d2fe;">평균단가</th></tr>`;
+  for (const code of keys.sort()) {
+    html += `<tr><td style="padding:4px 10px;border-bottom:1px solid #eee;">${code}</td><td style="padding:4px 10px;text-align:right;border-bottom:1px solid #eee;">${data[code].toLocaleString('ko-KR', {maximumFractionDigits:2})}</td></tr>`;
+  }
+  html += `</table>`;
+  container.innerHTML = html;
+}
+
+function updateMasterStatusInfo() {
+  const data = getMasterData();
+  const count = Object.keys(data).length;
+  const el = document.getElementById('masterStatusInfo');
+  if (count > 0) {
+    el.className = 'info-box';
+    el.innerHTML = `마스터 데이터: <b>${count}개</b> 중분류 단가 저장됨 (P=0인 항목에 자동 적용)`;
+  } else {
+    el.className = 'info-box';
+    el.innerHTML = `마스터 데이터 없음. <b>마스터 탭</b>에서 평균단가 파일을 업로드하세요.`;
+  }
+}
+
+// ========== 자재→중분류 매핑 함수 ==========
+function getMaterialMapping() {
+  try {
+    return JSON.parse(localStorage.getItem('materialToJungbunryu')) || {};
+  } catch { return {}; }
+}
+
+function saveMaterialMapping(data) {
+  localStorage.setItem('materialToJungbunryu', JSON.stringify(data));
+}
+
+function processPrevOpenPO(file) {
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const data = new Uint8Array(e.target.result);
+    const wb = XLSX.read(data, { type: 'array' });
+
+    const mapping = getMaterialMapping(); // 기존 매핑 유지하며 추가
+    let newCount = 0;
+
+    // Raw_Monthly 또는 Raw_Daily 시트에서 자재(H=col7)→중분류(S=col18) 매핑 추출
+    for (const sheetName of wb.SheetNames) {
+      if (!sheetName.includes('Raw')) continue;
+      const ws = wb.Sheets[sheetName];
+      const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+      for (let i = 1; i < rows.length; i++) {
+        const material = String(rows[i][7] || '').trim();  // H열: 자재
+        const jungbunryu = String(rows[i][18] || '').trim(); // S열: 중분류
+        if (material && jungbunryu && /^\d+[A-Z]\d+$/i.test(jungbunryu)) {
+          if (!mapping[material]) newCount++;
+          mapping[material] = jungbunryu;
+        }
+      }
+    }
+
+    saveMaterialMapping(mapping);
+    const total = Object.keys(mapping).length;
+    const statusEl = document.getElementById('mappingStatus');
+    statusEl.className = 'status-msg success';
+    statusEl.textContent = `자재→중분류 매핑 ${total}건 저장 (신규 ${newCount}건 추가)`;
+    updateMappingInfo();
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function updateMappingInfo() {
+  const mapping = getMaterialMapping();
+  const count = Object.keys(mapping).length;
+  const el = document.getElementById('mappingInfo');
+  if (count > 0) {
+    el.innerHTML = `자재→중분류 매핑: <b>${count}건</b> 저장됨`;
+  } else {
+    el.innerHTML = `자재→중분류 매핑 없음. 기존 Open PO 파일을 업로드하면 자재별 중분류코드를 자동 추출합니다.`;
+  }
+}
+
 // ========== Open PO tab functions ==========
 let openPoFileData = null;
 
@@ -690,6 +840,7 @@ function processOpenPO() {
 
   const exchangeRate = parseFloat(document.getElementById('exchangeRate').value) || 1419;
   const statusEl = document.getElementById('openPoStatus');
+  const masterData = getMasterData();
 
   try {
     const data = new Uint8Array(openPoFileData);
@@ -703,24 +854,13 @@ function processOpenPO() {
       return;
     }
 
-    // Input columns (0-indexed):
-    // A=0:SalesDocTy, B=1:생성일, C=2:원납기일, D=3:판매처이름, E=4:구매오더번호,
-    // F=5:판매문서, G=6:판매문서품목, H=7:자재, I=8:내역, J=9:총오더수량,
-    // K=10:미납잔량, L=11:미생산량, M=12:품질재고, N=13:가용재고,
-    // O=14:변경납기일, P=15:목표매출일, Q=16:납품수량, R=17:납품일자,
-    // S=18:전표통화, T=19:단가, U=20:생산완료일, V=21:설명1,
-    // W=22:목표매출비고, X=23:최종납품수량, Y=24:최초납품수량, Z=25:CY재고
-
-    const header = rows[0];
     const allowedTypes = ['ZOR1', 'ZKB1', 'ZOR6'];
     const todayStr = formatDateInput(new Date());
 
     const dataRows = rows.slice(1).filter(r => r[0] && String(r[0]).trim() !== '');
-    // A열: ZOR1, ZKB1, ZOR6만 허용 + 오늘 생성일 제외
     const validRows = dataRows.filter(r => {
       const st = String(r[0]).trim();
       if (!allowedTypes.includes(st)) return false;
-      // 오늘 날짜 생성일 제외
       const dateVal = r[1];
       if (dateVal) {
         let d;
@@ -732,25 +872,15 @@ function processOpenPO() {
       return true;
     });
 
-    // Find the latest 생성일 for daily filter
     let latestDate = null;
-    let latestDateStr = '';
     for (const row of validRows) {
       const dateVal = row[1];
       if (!dateVal) continue;
       let d;
-      if (dateVal instanceof Date) {
-        d = dateVal;
-      } else if (typeof dateVal === 'number') {
-        d = new Date((dateVal - 25569) * 86400000);
-      } else {
-        d = new Date(dateVal);
-      }
-      if (!isNaN(d.getTime())) {
-        if (!latestDate || d > latestDate) {
-          latestDate = d;
-        }
-      }
+      if (dateVal instanceof Date) d = dateVal;
+      else if (typeof dateVal === 'number') d = new Date((dateVal - 25569) * 86400000);
+      else d = new Date(dateVal);
+      if (!isNaN(d.getTime()) && (!latestDate || d > latestDate)) latestDate = d;
     }
 
     if (!latestDate) {
@@ -758,54 +888,72 @@ function processOpenPO() {
       statusEl.textContent = '날짜 데이터를 찾을 수 없습니다.';
       return;
     }
-
-    latestDateStr = formatDateInput(latestDate);
+    const latestDateStr = formatDateInput(latestDate);
 
     function isSameDate(dateVal, targetStr) {
       if (!dateVal) return false;
       let d;
-      if (dateVal instanceof Date) {
-        d = dateVal;
-      } else if (typeof dateVal === 'number') {
-        d = new Date((dateVal - 25569) * 86400000);
-      } else {
-        d = new Date(dateVal);
-      }
-      if (isNaN(d.getTime())) return false;
-      return formatDateInput(d) === targetStr;
+      if (dateVal instanceof Date) d = dateVal;
+      else if (typeof dateVal === 'number') d = new Date((dateVal - 25569) * 86400000);
+      else d = new Date(dateVal);
+      return !isNaN(d.getTime()) && formatDateInput(d) === targetStr;
     }
 
-    // Transform a row from input format to output format
-    function transformRow(row) {
-      const currency = String(row[18] || '').trim(); // S=전표통화
-      const unitPrice = parseFloat(row[19]) || 0;    // T=단가
-      const krwPrice = (currency === 'USD') ? unitPrice * exchangeRate : unitPrice;
-      const backlog = parseFloat(row[10]) || 0;       // K=미납잔량
-      const revenue = krwPrice * backlog;              // 매출
+    // 자재→중분류 매핑 로드
+    const materialMapping = getMaterialMapping();
 
-      return [
-        row[0],   // A: SalesDocTy
-        row[1],   // B: 생성일
-        row[2],   // C: 원납기일
-        row[3],   // D: 판매처이름
-        row[4],   // E: 구매오더번호
-        row[5],   // F: 판매문서
-        row[6],   // G: 판매문서품목
-        row[7],   // H: 자재
-        row[8],   // I: 내역
-        row[9],   // J: 총오더수량
-        row[10],  // K: 미납잔량
-        row[11],  // L: 미생산량
-        row[13],  // M: 가용재고 (input N→output M)
-        row[12],  // N: 품질재고 (input M→output N)
-        currency, // O: 전표통화
-        unitPrice,// P: 단가
-        krwPrice, // Q: 단가(KRW)
-        revenue,  // R: 매출
-        '',       // S: 중분류
-        '',       // T: 중분류명
-        row[9],   // U: 총본품수량 (=총오더수량)
-      ];
+    // Transform row: returns [data array, isPriceZero flag]
+    function transformRow(row) {
+      const currency = String(row[18] || '').trim(); // input S=전표통화
+      const unitPrice = parseFloat(row[19]) || 0;    // input T=단가
+      const isPriceZero = unitPrice === 0;
+      const backlog = parseFloat(row[10]) || 0;      // K=미납잔량
+      const material = String(row[7] || '').trim();   // H=자재
+
+      // 자재코드로 중분류 조회
+      const jungbunryu = materialMapping[material] || '';
+
+      let qPrice; // Q열 단가
+      if (unitPrice > 0) {
+        // P에 단가가 있으면 → Q에 그대로 (KRW) 또는 환율 적용 (USD)
+        qPrice = (currency === 'USD') ? unitPrice * exchangeRate : unitPrice;
+      } else {
+        // P=0 → 중분류코드로 마스터 조회
+        if (jungbunryu && masterData[jungbunryu]) {
+          qPrice = masterData[jungbunryu];
+        } else {
+          qPrice = 0;
+        }
+      }
+
+      const revenue = qPrice * backlog;
+
+      return {
+        data: [
+          row[0],       // A: SalesDocTy
+          row[1],       // B: 생성일
+          row[2],       // C: 원납기일
+          row[3],       // D: 판매처이름
+          row[4],       // E: 구매오더번호
+          row[5],       // F: 판매문서
+          row[6],       // G: 판매문서품목
+          row[7],       // H: 자재
+          row[8],       // I: 내역
+          row[9],       // J: 총오더수량
+          row[10],      // K: 미납잔량
+          row[11],      // L: 미생산량
+          row[13],      // M: 가용재고 (input N→output M)
+          row[12],      // N: 품질재고 (input M→output N)
+          currency,     // O: 전표통화
+          unitPrice,    // P: 단가 (원래)
+          qPrice,       // Q: 단가 (계산됨)
+          revenue,      // R: 매출
+          jungbunryu,   // S: 중분류
+          '',           // T: 중분류명
+          row[9],       // U: 총본품수량
+        ],
+        isPriceZero
+      };
     }
 
     const outHeader = [
@@ -815,15 +963,18 @@ function processOpenPO() {
       '단가', '단가', '매출', '중분류', '중분류명', '총본품수량'
     ];
 
-    // Split into daily and monthly
     const dailyRows = [];
     const monthlyRows = [];
+    const dailyZeroFlags = [];
+    const monthlyZeroFlags = [];
 
     for (const row of validRows) {
-      const transformed = transformRow(row);
+      const { data: transformed, isPriceZero } = transformRow(row);
       monthlyRows.push(transformed);
+      monthlyZeroFlags.push(isPriceZero);
       if (isSameDate(row[1], latestDateStr)) {
         dailyRows.push(transformed);
+        dailyZeroFlags.push(isPriceZero);
       }
     }
 
@@ -831,19 +982,14 @@ function processOpenPO() {
     function buildPivot(rows, title) {
       const custTotals = {};
       for (const row of rows) {
-        const cust = String(row[3]).trim(); // D: 판매처이름
-        const rev = parseFloat(row[17]) || 0; // R: 매출
+        const cust = String(row[3]).trim();
+        const rev = parseFloat(row[17]) || 0;
         custTotals[cust] = (custTotals[cust] || 0) + rev;
       }
-      // Sort by amount descending
       const sorted = Object.entries(custTotals).sort((a, b) => b[1] - a[1]);
       const total = sorted.reduce((sum, e) => sum + e[1], 0);
-
-      const pivotData = [[title]];
-      pivotData.push(['고객사', '매출(원)']);
-      for (const [name, amount] of sorted) {
-        pivotData.push([name, amount]);
-      }
+      const pivotData = [[title], ['고객사', '매출(원)']];
+      for (const [name, amount] of sorted) pivotData.push([name, amount]);
       pivotData.push(['총합계', total]);
       pivotData.push(['', `*환율 ${exchangeRate.toLocaleString('ko-KR')}원 기준`]);
       return pivotData;
@@ -851,44 +997,55 @@ function processOpenPO() {
 
     const y = String(latestDate.getFullYear()).slice(2);
     const m = latestDate.getMonth() + 1;
-    const d = latestDate.getDate();
+    const dd = latestDate.getDate();
 
-    const dailyPivot = buildPivot(dailyRows, `${y}년 ${m}월 ${d}일자 수주량`);
+    const dailyPivot = buildPivot(dailyRows, `${y}년 ${m}월 ${dd}일자 수주량`);
     const monthlyPivot = buildPivot(monthlyRows, '당월 누적 수주량');
-
-    // Combine OPEN PO sheet: daily pivot + blank row + monthly pivot
     const openPoData = [...dailyPivot, [''], ...monthlyPivot];
 
-    // Create workbook
     const wb = XLSX.utils.book_new();
 
     // OPEN PO sheet
     const wsOpenPo = XLSX.utils.aoa_to_sheet(openPoData);
     XLSX.utils.book_append_sheet(wb, wsOpenPo, 'OPEN PO');
 
-    // Raw_Monthly sheet
-    const rawMonthlyHeader = [...outHeader];
-    rawMonthlyHeader.push('', '', exchangeRate); // X column = exchange rate
-    const monthlyData = [rawMonthlyHeader, ...monthlyRows];
-    const wsMonthly = XLSX.utils.aoa_to_sheet(monthlyData);
+    // Gray fill style for P=0 cells
+    const grayFill = { fill: { fgColor: { rgb: 'C0C0C0' } } };
+
+    // Helper: build Raw sheet with gray fill on P=0 rows
+    function buildRawSheet(header, dataRows, zeroFlags) {
+      const fullHeader = [...header, '', '', exchangeRate];
+      const allData = [fullHeader, ...dataRows];
+      const ws = XLSX.utils.aoa_to_sheet(allData);
+
+      // Apply gray fill to P column (index 15) where price is 0
+      for (let i = 0; i < dataRows.length; i++) {
+        if (zeroFlags[i]) {
+          const cellRef = XLSX.utils.encode_cell({ r: i + 1, c: 15 }); // P열 (0-indexed col 15)
+          if (ws[cellRef]) {
+            ws[cellRef].s = grayFill;
+          }
+        }
+      }
+      return ws;
+    }
+
+    const wsMonthly = buildRawSheet(outHeader, monthlyRows, monthlyZeroFlags);
     XLSX.utils.book_append_sheet(wb, wsMonthly, 'Raw_Monthly');
 
-    // Raw_Daily sheet
-    const rawDailyHeader = [...outHeader];
-    rawDailyHeader.push('', '', exchangeRate);
-    const dailyData = [rawDailyHeader, ...dailyRows];
-    const wsDaily = XLSX.utils.aoa_to_sheet(dailyData);
+    const wsDaily = buildRawSheet(outHeader, dailyRows, dailyZeroFlags);
     XLSX.utils.book_append_sheet(wb, wsDaily, 'Raw_Daily');
 
-    // Generate filename
-    const dateCode = y + String(m).padStart(2, '0') + String(d).padStart(2, '0');
+    const dateCode = y + String(m).padStart(2, '0') + String(dd).padStart(2, '0');
     const filename = `Open PO_${dateCode}.XLSX`;
 
-    // Download
     XLSX.writeFile(wb, filename);
 
+    const zeroCount = monthlyZeroFlags.filter(f => f).length;
+    let msg = `${filename} 다운로드 완료! (Daily: ${dailyRows.length}건 / Monthly: ${monthlyRows.length}건)`;
+    if (zeroCount > 0) msg += `\nP=0 항목: ${zeroCount}건 (회색 표시)`;
     statusEl.className = 'status-msg success';
-    statusEl.textContent = `${filename} 다운로드 완료! (Daily: ${dailyRows.length}건 / Monthly: ${monthlyRows.length}건)`;
+    statusEl.textContent = msg;
 
   } catch (err) {
     statusEl.className = 'status-msg error';
@@ -910,9 +1067,7 @@ document.getElementById('dailyBilling').addEventListener('input', updateOutput);
 document.getElementById('billing').addEventListener('input', updateOutput);
 document.getElementById('senderName').addEventListener('input', updateOutput);
 document.getElementById('excelFile').addEventListener('change', function(e) {
-  if (e.target.files.length > 0) {
-    processExcel(e.target.files[0]);
-  }
+  if (e.target.files.length > 0) processExcel(e.target.files[0]);
 });
 
 // Event listeners - Open PO tab
@@ -928,6 +1083,20 @@ document.getElementById('openPoFile').addEventListener('change', function(e) {
     reader.readAsArrayBuffer(e.target.files[0]);
   }
 });
+
+// Event listeners - Prev Open PO file (자재→중분류 매핑)
+document.getElementById('prevOpenPoFile').addEventListener('change', function(e) {
+  if (e.target.files.length > 0) processPrevOpenPO(e.target.files[0]);
+});
+
+// Event listeners - Master tab
+document.getElementById('masterFile').addEventListener('change', function(e) {
+  if (e.target.files.length > 0) processMasterFile(e.target.files[0]);
+});
+
+// Init master status & mapping info
+updateMasterStatusInfo();
+updateMappingInfo();
 </script>
 </body>
 </html>
