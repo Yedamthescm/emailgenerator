@@ -20,10 +20,42 @@
   }
   h1 {
     text-align: center;
-    margin-bottom: 30px;
+    margin-bottom: 20px;
     color: #1a1a2e;
     font-size: 22px;
   }
+  /* Tab styles */
+  .tab-nav {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 20px;
+    background: #e2e5ea;
+    border-radius: 10px;
+    padding: 4px;
+  }
+  .tab-btn {
+    flex: 1;
+    padding: 10px 16px;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    background: transparent;
+    color: #666;
+    transition: all 0.2s;
+    font-family: inherit;
+  }
+  .tab-btn.active {
+    background: #fff;
+    color: #1a1a2e;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+  }
+  .tab-btn:hover:not(.active) {
+    color: #333;
+  }
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
   .section {
     background: #fff;
     border-radius: 12px;
@@ -137,7 +169,7 @@
     font-weight: 600;
     display: inline-block;
   }
-  /* Pivot table styles - Excel 캡처 스타일 */
+  /* Pivot table styles */
   .pivot-wrapper {
     margin: 10px 0;
     display: inline-block;
@@ -229,99 +261,174 @@
     border: 1px solid #ddd;
     border-radius: 4px;
   }
+  /* Open PO tab styles */
+  .download-btn {
+    width: 100%;
+    padding: 14px;
+    border: none;
+    border-radius: 8px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-family: inherit;
+    background: #4a6cf7;
+    color: #fff;
+    margin-top: 8px;
+  }
+  .download-btn:hover { background: #3b5de7; }
+  .download-btn:disabled {
+    background: #ccc;
+    cursor: not-allowed;
+  }
+  .status-msg {
+    margin-top: 12px;
+    padding: 12px;
+    border-radius: 8px;
+    font-size: 13px;
+    display: none;
+  }
+  .status-msg.success {
+    display: block;
+    background: #dcfce7;
+    color: #166534;
+    border: 1px solid #bbf7d0;
+  }
+  .status-msg.error {
+    display: block;
+    background: #fef2f2;
+    color: #991b1b;
+    border: 1px solid #fecaca;
+  }
+  .info-box {
+    background: #eff6ff;
+    border: 1px solid #bfdbfe;
+    border-radius: 8px;
+    padding: 12px;
+    font-size: 13px;
+    color: #1e40af;
+    margin-top: 12px;
+    line-height: 1.6;
+  }
 </style>
 </head>
 <body>
 <div class="container">
   <h1>해외마케팅본부 실적 이메일 생성기</h1>
 
-  <div class="section">
-    <h2>입력</h2>
-    <div class="input-group">
-      <label>발신자</label>
-      <input type="text" id="senderName" value="해외 SCM팀 김예담">
+  <div class="tab-nav">
+    <button class="tab-btn active" onclick="switchTab('email')">이메일 작성</button>
+    <button class="tab-btn" onclick="switchTab('openpo')">Open PO</button>
+  </div>
+
+  <!-- ========== 이메일 작성 탭 ========== -->
+  <div id="tab-email" class="tab-content active">
+    <div class="section">
+      <h2>입력</h2>
+      <div class="input-group">
+        <label>발신자</label>
+        <input type="text" id="senderName" value="해외 SCM팀 김예담">
+      </div>
+      <div class="input-group">
+        <label>날짜</label>
+        <input type="date" id="dateInput">
+        <span class="date-display" id="dateDisplay"></span>
+      </div>
+      <div class="input-group">
+        <label>변경 사항</label>
+        <input type="text" id="priceComment" value="튀는 단가 없습니다.">
+      </div>
+      <div class="input-group">
+        <label>당일 수주</label>
+        <input type="text" id="dailyOrder" placeholder="예: 17억">
+      </div>
+      <div class="input-group">
+        <label>당일 누계 수주</label>
+        <input type="text" id="cumOrder" placeholder="예: 96억">
+      </div>
+      <div class="input-group">
+        <label>당일 빌링</label>
+        <input type="text" id="dailyBilling" placeholder="예: 5억">
+      </div>
+      <div class="input-group">
+        <label>당월 누적 빌링</label>
+        <input type="text" id="billing" placeholder="예: 64억">
+      </div>
+      <div class="input-group">
+        <label>엑셀 파일</label>
+        <input type="file" id="excelFile" accept=".xlsx,.xls">
+      </div>
+      <div id="pivotPreview" style="display:none;">
+        <div id="pivotRender"></div>
+      </div>
     </div>
-    <div class="input-group">
-      <label>날짜</label>
-      <input type="date" id="dateInput">
-      <span class="date-display" id="dateDisplay"></span>
-    </div>
-    <div class="input-group">
-      <label>변경 사항</label>
-      <input type="text" id="priceComment" value="튀는 단가 없습니다.">
-    </div>
-    <div class="input-group">
-      <label>당일 수주</label>
-      <input type="text" id="dailyOrder" placeholder="예: 17억">
-    </div>
-    <div class="input-group">
-      <label>당일 누계 수주</label>
-      <input type="text" id="cumOrder" placeholder="예: 96억">
-    </div>
-    <div class="input-group">
-      <label>당일 빌링</label>
-      <input type="text" id="dailyBilling" placeholder="예: 5억">
-    </div>
-    <div class="input-group">
-      <label>당월 누적 빌링</label>
-      <input type="text" id="billing" placeholder="예: 64억">
-    </div>
-    <div class="input-group">
-      <label>엑셀 파일</label>
-      <input type="file" id="excelFile" accept=".xlsx,.xls">
-    </div>
-    <div id="pivotPreview" style="display:none;">
-      <div id="pivotRender"></div>
+
+    <div class="section">
+      <h2>결과</h2>
+      <div class="output-block">
+        <div class="output-header">
+          <label>받는사람</label>
+          <div class="btn-group">
+            <button class="copy-btn" onclick="copyText('outTo', this)">복사</button>
+            <button class="edit-btn" onclick="toggleEdit('outTo', this)">수정</button>
+          </div>
+        </div>
+        <div class="output-content" id="outTo">BJ.Lee@cosmax.com</div>
+      </div>
+      <div class="output-block">
+        <div class="output-header">
+          <label>참조</label>
+          <div class="btn-group">
+            <button class="copy-btn" onclick="copyText('outCc', this)">복사</button>
+            <button class="edit-btn" onclick="toggleEdit('outCc', this)">수정</button>
+          </div>
+        </div>
+        <div class="output-content" id="outCc">yonggyu.kim@cosmax.com; mssuh@cosmax.com; jclyu@cosmax.com; suejang@cosmax.com; nayeon.yoo@cosmax.com; smkang@cosmax.com; drswat@cosmax.com; leejw@cosmax.com; amy.kang@cosmax.com; sohyun.ahn@cosmax.com; smlim@cosmax.com; kimte@cosmax.com; kmroh@cosmax.com; yeonseo.koh@cosmax.com; yoojung.jang@cosmax.com; jiyeon.kim@cosmax.com; yedam.kim@cosmax.com</div>
+      </div>
+      <div class="output-block">
+        <div class="output-header">
+          <label>이메일 제목</label>
+          <div class="btn-group">
+            <button class="copy-btn" onclick="copyText('outSubject', this)">복사</button>
+            <button class="edit-btn" onclick="toggleEdit('outSubject', this)">수정</button>
+          </div>
+        </div>
+        <div class="output-content" id="outSubject"></div>
+      </div>
+      <div class="output-block">
+        <div class="output-header">
+          <label>이메일 내용</label>
+          <div class="btn-group">
+            <button class="copy-btn" onclick="copyText('outBody', this)">복사</button>
+            <button class="edit-btn" onclick="toggleEdit('outBody', this)">수정</button>
+          </div>
+        </div>
+        <div class="output-content" id="outBody"></div>
+      </div>
     </div>
   </div>
 
-  <div class="section">
-    <h2>결과</h2>
-
-    <div class="output-block">
-      <div class="output-header">
-        <label>받는사람</label>
-        <div class="btn-group">
-          <button class="copy-btn" onclick="copyText('outTo', this)">복사</button>
-          <button class="edit-btn" onclick="toggleEdit('outTo', this)">수정</button>
-        </div>
+  <!-- ========== Open PO 탭 ========== -->
+  <div id="tab-openpo" class="tab-content">
+    <div class="section">
+      <h2>Open PO 변환</h2>
+      <div class="input-group">
+        <label>Export 파일</label>
+        <input type="file" id="openPoFile" accept=".xlsx,.xls">
       </div>
-      <div class="output-content" id="outTo">BJ.Lee@cosmax.com</div>
-    </div>
-
-    <div class="output-block">
-      <div class="output-header">
-        <label>참조</label>
-        <div class="btn-group">
-          <button class="copy-btn" onclick="copyText('outCc', this)">복사</button>
-          <button class="edit-btn" onclick="toggleEdit('outCc', this)">수정</button>
-        </div>
+      <div class="input-group">
+        <label>환율 (KRW/USD)</label>
+        <input type="number" id="exchangeRate" value="1419" step="1">
       </div>
-      <div class="output-content" id="outCc">yonggyu.kim@cosmax.com; mssuh@cosmax.com; jclyu@cosmax.com; suejang@cosmax.com; nayeon.yoo@cosmax.com; smkang@cosmax.com; drswat@cosmax.com; leejw@cosmax.com; amy.kang@cosmax.com; sohyun.ahn@cosmax.com; smlim@cosmax.com; kimte@cosmax.com; kmroh@cosmax.com; yeonseo.koh@cosmax.com; yoojung.jang@cosmax.com; jiyeon.kim@cosmax.com; yedam.kim@cosmax.com</div>
-    </div>
-
-    <div class="output-block">
-      <div class="output-header">
-        <label>이메일 제목</label>
-        <div class="btn-group">
-          <button class="copy-btn" onclick="copyText('outSubject', this)">복사</button>
-          <button class="edit-btn" onclick="toggleEdit('outSubject', this)">수정</button>
-        </div>
+      <button class="download-btn" id="openPoDownloadBtn" onclick="processOpenPO()" disabled>변환 및 다운로드</button>
+      <div class="status-msg" id="openPoStatus"></div>
+      <div class="info-box">
+        export 파일을 업로드하면 자동으로 Open PO 파일로 변환됩니다.<br>
+        - <b>OPEN PO</b> 시트: 당일 수주량 + 당월 누적 수주량 요약<br>
+        - <b>Raw_Monthly</b> 시트: 당월 전체 Raw 데이터<br>
+        - <b>Raw_Daily</b> 시트: 당일 Raw 데이터
       </div>
-      <div class="output-content" id="outSubject"></div>
     </div>
-
-    <div class="output-block">
-      <div class="output-header">
-        <label>이메일 내용</label>
-        <div class="btn-group">
-          <button class="copy-btn" onclick="copyText('outBody', this)">복사</button>
-          <button class="edit-btn" onclick="toggleEdit('outBody', this)">수정</button>
-        </div>
-      </div>
-      <div class="output-content" id="outBody"></div>
-    </div>
-
   </div>
 </div>
 
@@ -329,6 +436,20 @@
 const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
 let pivotImageDataUrl = null;
 
+// ========== Tab switching ==========
+function switchTab(tab) {
+  document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+  if (tab === 'email') {
+    document.querySelectorAll('.tab-btn')[0].classList.add('active');
+    document.getElementById('tab-email').classList.add('active');
+  } else {
+    document.querySelectorAll('.tab-btn')[1].classList.add('active');
+    document.getElementById('tab-openpo').classList.add('active');
+  }
+}
+
+// ========== Email tab functions (unchanged) ==========
 function getAutoDate() {
   const today = new Date();
   const dow = today.getDay();
@@ -363,7 +484,6 @@ function updateOutput() {
   const date = d.getDate();
   const dow = dayNames[d.getDay()];
   const year = d.getFullYear();
-
 
   document.getElementById('dateDisplay').textContent =
     `${year}년 ${month}월 ${date}일 (${dow})`;
@@ -408,7 +528,6 @@ function copyText(id, btn) {
   const el = document.getElementById(id);
 
   if (id === 'outBody') {
-    // 이메일 내용은 이미지 포함 리치 HTML로 복사
     const htmlContent = el.innerHTML;
     const textContent = el.textContent;
     const blob = new Blob([htmlContent], { type: 'text/html' });
@@ -472,7 +591,6 @@ function processExcel(file) {
     const data = new Uint8Array(e.target.result);
     const workbook = XLSX.read(data, {type: 'array'});
 
-    // 1. OPEN PO 시트에서 고객사별 합계와 제목, 총합계, 환율 읽기
     const openPoName = workbook.SheetNames.find(n => n.includes('OPEN PO'));
     if (!openPoName) {
       alert('OPEN PO 시트를 찾을 수 없습니다.');
@@ -482,7 +600,7 @@ function processExcel(file) {
     const openPoRange = XLSX.utils.decode_range(openPo['!ref']);
 
     const title = openPo['A1'] ? openPo['A1'].v : '';
-    const customers = []; // {name, amount} 순서대로
+    const customers = [];
     let totalRow = null;
     let noteText = '';
 
@@ -501,18 +619,17 @@ function processExcel(file) {
       customers.push({ name: val, amount: cellB ? cellB.v : 0 });
     }
 
-    // 2. Raw_Daily 시트에서 하위 항목 읽기 (D=고객사, I=내역, R=금액)
     const rawName = workbook.SheetNames.find(n => n.includes('Raw_Daily'));
-    const subItems = {}; // { 고객사: [{item, amount}] }
+    const subItems = {};
 
     if (rawName) {
       const rawSheet = workbook.Sheets[rawName];
       const rawRange = XLSX.utils.decode_range(rawSheet['!ref']);
 
       for (let r = 1; r <= rawRange.e.r; r++) {
-        const cellD = rawSheet[XLSX.utils.encode_cell({r: r, c: 3})]; // D열 (고객사)
-        const cellI = rawSheet[XLSX.utils.encode_cell({r: r, c: 8})]; // I열 (내역)
-        const cellR = rawSheet[XLSX.utils.encode_cell({r: r, c: 17})]; // R열 (금액)
+        const cellD = rawSheet[XLSX.utils.encode_cell({r: r, c: 3})];
+        const cellI = rawSheet[XLSX.utils.encode_cell({r: r, c: 8})];
+        const cellR = rawSheet[XLSX.utils.encode_cell({r: r, c: 17})];
 
         if (!cellD || !cellI) continue;
         const custName = String(cellD.v).trim();
@@ -526,7 +643,6 @@ function processExcel(file) {
       }
     }
 
-    // 3. HTML 테이블 생성 (엑셀 캡처 스타일)
     let html = `<div class="pivot-wrapper" id="pivotCapture">`;
     html += `<div class="pivot-title">${title}</div>`;
     html += `<table class="pivot-table">`;
@@ -534,10 +650,7 @@ function processExcel(file) {
     html += `<tbody>`;
 
     for (const cust of customers) {
-      // 고객사 합계 행 (굵게)
       html += `<tr><td class="name customer">${cust.name}</td><td class="amount customer-amount">${formatKRW(cust.amount)}</td></tr>`;
-
-      // 하위 항목 (들여쓰기, 매출 내림차순)
       const items = (subItems[cust.name] || []).sort((a, b) => (b.amount || 0) - (a.amount || 0));
       for (const item of items) {
         html += `<tr><td class="name sub-item">${item.item}</td><td class="amount">${formatKRW(item.amount)}</td></tr>`;
@@ -558,24 +671,224 @@ function processExcel(file) {
     render.innerHTML = html;
     preview.style.display = 'block';
 
-    // 이미지로 변환 후 이메일 내용에 삽입
     setTimeout(() => {
       const el = document.getElementById('pivotCapture');
       html2canvas(el, { scale: 2, backgroundColor: '#ffffff' }).then(canvas => {
         pivotImageDataUrl = canvas.toDataURL('image/png');
-        updateOutput(); // 이메일 내용에 이미지 반영
+        updateOutput();
       });
     }, 300);
   };
   reader.readAsArrayBuffer(file);
 }
 
-// Init
+// ========== Open PO tab functions ==========
+let openPoFileData = null;
+
+function processOpenPO() {
+  if (!openPoFileData) return;
+
+  const exchangeRate = parseFloat(document.getElementById('exchangeRate').value) || 1419;
+  const statusEl = document.getElementById('openPoStatus');
+
+  try {
+    const data = new Uint8Array(openPoFileData);
+    const workbook = XLSX.read(data, { type: 'array', cellDates: true });
+    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+
+    if (rows.length < 2) {
+      statusEl.className = 'status-msg error';
+      statusEl.textContent = '데이터가 없습니다.';
+      return;
+    }
+
+    // Input columns (0-indexed):
+    // A=0:SalesDocTy, B=1:생성일, C=2:원납기일, D=3:판매처이름, E=4:구매오더번호,
+    // F=5:판매문서, G=6:판매문서품목, H=7:자재, I=8:내역, J=9:총오더수량,
+    // K=10:미납잔량, L=11:미생산량, M=12:품질재고, N=13:가용재고,
+    // O=14:변경납기일, P=15:목표매출일, Q=16:납품수량, R=17:납품일자,
+    // S=18:전표통화, T=19:단가, U=20:생산완료일, V=21:설명1,
+    // W=22:목표매출비고, X=23:최종납품수량, Y=24:최초납품수량, Z=25:CY재고
+
+    const header = rows[0];
+    const dataRows = rows.slice(1).filter(r => r[0] && String(r[0]).trim() !== '');
+    // Skip the summary row (row index 1 in original, which has empty SalesDocTy but totals)
+    const validRows = dataRows.filter(r => {
+      const st = String(r[0]).trim();
+      return st.startsWith('ZOR');
+    });
+
+    // Find the latest 생성일 for daily filter
+    let latestDate = null;
+    let latestDateStr = '';
+    for (const row of validRows) {
+      const dateVal = row[1]; // 생성일
+      if (!dateVal) continue;
+      let d;
+      if (dateVal instanceof Date) {
+        d = dateVal;
+      } else if (typeof dateVal === 'number') {
+        d = new Date((dateVal - 25569) * 86400000); // Excel serial date
+      } else {
+        d = new Date(dateVal);
+      }
+      if (!isNaN(d.getTime())) {
+        if (!latestDate || d > latestDate) {
+          latestDate = d;
+        }
+      }
+    }
+
+    if (!latestDate) {
+      statusEl.className = 'status-msg error';
+      statusEl.textContent = '날짜 데이터를 찾을 수 없습니다.';
+      return;
+    }
+
+    latestDateStr = formatDateInput(latestDate);
+
+    function isSameDate(dateVal, targetStr) {
+      if (!dateVal) return false;
+      let d;
+      if (dateVal instanceof Date) {
+        d = dateVal;
+      } else if (typeof dateVal === 'number') {
+        d = new Date((dateVal - 25569) * 86400000);
+      } else {
+        d = new Date(dateVal);
+      }
+      if (isNaN(d.getTime())) return false;
+      return formatDateInput(d) === targetStr;
+    }
+
+    // Transform a row from input format to output format
+    function transformRow(row) {
+      const currency = String(row[18] || '').trim(); // S=전표통화
+      const unitPrice = parseFloat(row[19]) || 0;    // T=단가
+      const krwPrice = (currency === 'USD') ? unitPrice * exchangeRate : unitPrice;
+      const backlog = parseFloat(row[10]) || 0;       // K=미납잔량
+      const revenue = krwPrice * backlog;              // 매출
+
+      return [
+        row[0],   // A: SalesDocTy
+        row[1],   // B: 생성일
+        row[2],   // C: 원납기일
+        row[3],   // D: 판매처이름
+        row[4],   // E: 구매오더번호
+        row[5],   // F: 판매문서
+        row[6],   // G: 판매문서품목
+        row[7],   // H: 자재
+        row[8],   // I: 내역
+        row[9],   // J: 총오더수량
+        row[10],  // K: 미납잔량
+        row[11],  // L: 미생산량
+        row[13],  // M: 가용재고 (input N→output M)
+        row[12],  // N: 품질재고 (input M→output N)
+        currency, // O: 전표통화
+        unitPrice,// P: 단가
+        krwPrice, // Q: 단가(KRW)
+        revenue,  // R: 매출
+        '',       // S: 중분류
+        '',       // T: 중분류명
+        row[9],   // U: 총본품수량 (=총오더수량)
+      ];
+    }
+
+    const outHeader = [
+      'SalesDocTy', '생성일', '원납기일', '판매처이름', '구매오더번호',
+      '판매문서', '판매문서품목', '자재', '내역', '총오더수량',
+      '미납잔량', '미생산량', '가용재고', '품질재고', '전표 통화',
+      '단가', '단가', '매출', '중분류', '중분류명', '총본품수량'
+    ];
+
+    // Split into daily and monthly
+    const dailyRows = [];
+    const monthlyRows = [];
+
+    for (const row of validRows) {
+      const transformed = transformRow(row);
+      monthlyRows.push(transformed);
+      if (isSameDate(row[1], latestDateStr)) {
+        dailyRows.push(transformed);
+      }
+    }
+
+    // Build OPEN PO summary pivot
+    function buildPivot(rows, title) {
+      const custTotals = {};
+      for (const row of rows) {
+        const cust = String(row[3]).trim(); // D: 판매처이름
+        const rev = parseFloat(row[17]) || 0; // R: 매출
+        custTotals[cust] = (custTotals[cust] || 0) + rev;
+      }
+      // Sort by amount descending
+      const sorted = Object.entries(custTotals).sort((a, b) => b[1] - a[1]);
+      const total = sorted.reduce((sum, e) => sum + e[1], 0);
+
+      const pivotData = [[title]];
+      pivotData.push(['고객사', '매출(원)']);
+      for (const [name, amount] of sorted) {
+        pivotData.push([name, amount]);
+      }
+      pivotData.push(['총합계', total]);
+      pivotData.push(['', `*환율 ${exchangeRate.toLocaleString('ko-KR')}원 기준`]);
+      return pivotData;
+    }
+
+    const y = String(latestDate.getFullYear()).slice(2);
+    const m = latestDate.getMonth() + 1;
+    const d = latestDate.getDate();
+
+    const dailyPivot = buildPivot(dailyRows, `${y}년 ${m}월 ${d}일자 수주량`);
+    const monthlyPivot = buildPivot(monthlyRows, '당월 누적 수주량');
+
+    // Combine OPEN PO sheet: daily pivot + blank row + monthly pivot
+    const openPoData = [...dailyPivot, [''], ...monthlyPivot];
+
+    // Create workbook
+    const wb = XLSX.utils.book_new();
+
+    // OPEN PO sheet
+    const wsOpenPo = XLSX.utils.aoa_to_sheet(openPoData);
+    XLSX.utils.book_append_sheet(wb, wsOpenPo, 'OPEN PO');
+
+    // Raw_Monthly sheet
+    const rawMonthlyHeader = [...outHeader];
+    rawMonthlyHeader.push('', '', exchangeRate); // X column = exchange rate
+    const monthlyData = [rawMonthlyHeader, ...monthlyRows];
+    const wsMonthly = XLSX.utils.aoa_to_sheet(monthlyData);
+    XLSX.utils.book_append_sheet(wb, wsMonthly, 'Raw_Monthly');
+
+    // Raw_Daily sheet
+    const rawDailyHeader = [...outHeader];
+    rawDailyHeader.push('', '', exchangeRate);
+    const dailyData = [rawDailyHeader, ...dailyRows];
+    const wsDaily = XLSX.utils.aoa_to_sheet(dailyData);
+    XLSX.utils.book_append_sheet(wb, wsDaily, 'Raw_Daily');
+
+    // Generate filename
+    const dateCode = y + String(m).padStart(2, '0') + String(d).padStart(2, '0');
+    const filename = `Open PO_${dateCode}.XLSX`;
+
+    // Download
+    XLSX.writeFile(wb, filename);
+
+    statusEl.className = 'status-msg success';
+    statusEl.textContent = `${filename} 다운로드 완료! (Daily: ${dailyRows.length}건 / Monthly: ${monthlyRows.length}건)`;
+
+  } catch (err) {
+    statusEl.className = 'status-msg error';
+    statusEl.textContent = '오류: ' + err.message;
+  }
+}
+
+// ========== Init ==========
 const autoDate = getAutoDate();
 document.getElementById('dateInput').value = formatDateInput(autoDate);
 updateOutput();
 
-// Event listeners
+// Event listeners - Email tab
 document.getElementById('dateInput').addEventListener('change', updateOutput);
 document.getElementById('priceComment').addEventListener('input', updateOutput);
 document.getElementById('dailyOrder').addEventListener('input', updateOutput);
@@ -586,6 +899,20 @@ document.getElementById('senderName').addEventListener('input', updateOutput);
 document.getElementById('excelFile').addEventListener('change', function(e) {
   if (e.target.files.length > 0) {
     processExcel(e.target.files[0]);
+  }
+});
+
+// Event listeners - Open PO tab
+document.getElementById('openPoFile').addEventListener('change', function(e) {
+  if (e.target.files.length > 0) {
+    const reader = new FileReader();
+    reader.onload = function(ev) {
+      openPoFileData = ev.target.result;
+      document.getElementById('openPoDownloadBtn').disabled = false;
+      document.getElementById('openPoStatus').className = 'status-msg';
+      document.getElementById('openPoStatus').style.display = 'none';
+    };
+    reader.readAsArrayBuffer(e.target.files[0]);
   }
 });
 </script>
