@@ -418,15 +418,9 @@
         <input type="file" id="openPoFile" accept=".xlsx,.xls">
       </div>
       <div class="input-group">
-        <label>기존 Open PO</label>
-        <input type="file" id="prevOpenPoFile" accept=".xlsx,.xls">
-      </div>
-      <div class="input-group">
         <label>환율 (KRW/USD)</label>
         <input type="number" id="exchangeRate" value="1419" step="1">
       </div>
-      <div class="status-msg" id="mappingStatus"></div>
-      <div class="info-box" id="mappingInfo"></div>
       <button class="download-btn" id="openPoDownloadBtn" onclick="processOpenPO()" disabled>변환 및 다운로드</button>
       <div class="status-msg" id="openPoStatus"></div>
       <div class="info-box" id="masterStatusInfo"></div>
@@ -776,62 +770,6 @@ function updateMasterStatusInfo() {
   }
 }
 
-// ========== 자재→중분류 매핑 함수 ==========
-function getMaterialMapping() {
-  try {
-    return JSON.parse(localStorage.getItem('materialToJungbunryu')) || {};
-  } catch { return {}; }
-}
-
-function saveMaterialMapping(data) {
-  localStorage.setItem('materialToJungbunryu', JSON.stringify(data));
-}
-
-function processPrevOpenPO(file) {
-  const reader = new FileReader();
-  reader.onload = function(e) {
-    const data = new Uint8Array(e.target.result);
-    const wb = XLSX.read(data, { type: 'array' });
-
-    const mapping = getMaterialMapping(); // 기존 매핑 유지하며 추가
-    let newCount = 0;
-
-    // Raw_Monthly 또는 Raw_Daily 시트에서 자재(H=col7)→중분류(S=col18) 매핑 추출
-    for (const sheetName of wb.SheetNames) {
-      if (!sheetName.includes('Raw')) continue;
-      const ws = wb.Sheets[sheetName];
-      const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
-      for (let i = 1; i < rows.length; i++) {
-        const material = String(rows[i][7] || '').trim();  // H열: 자재
-        const jungbunryu = String(rows[i][18] || '').trim(); // S열: 중분류
-        if (material && jungbunryu && /^\d+[A-Z]\d+$/i.test(jungbunryu)) {
-          if (!mapping[material]) newCount++;
-          mapping[material] = jungbunryu;
-        }
-      }
-    }
-
-    saveMaterialMapping(mapping);
-    const total = Object.keys(mapping).length;
-    const statusEl = document.getElementById('mappingStatus');
-    statusEl.className = 'status-msg success';
-    statusEl.textContent = `자재→중분류 매핑 ${total}건 저장 (신규 ${newCount}건 추가)`;
-    updateMappingInfo();
-  };
-  reader.readAsArrayBuffer(file);
-}
-
-function updateMappingInfo() {
-  const mapping = getMaterialMapping();
-  const count = Object.keys(mapping).length;
-  const el = document.getElementById('mappingInfo');
-  if (count > 0) {
-    el.innerHTML = `자재→중분류 매핑: <b>${count}건</b> 저장됨`;
-  } else {
-    el.innerHTML = `자재→중분류 매핑 없음. 기존 Open PO 파일을 업로드하면 자재별 중분류코드를 자동 추출합니다.`;
-  }
-}
-
 // ========== Open PO tab functions ==========
 let openPoFileData = null;
 
@@ -899,8 +837,12 @@ function processOpenPO() {
       return !isNaN(d.getTime()) && formatDateInput(d) === targetStr;
     }
 
-    // 자재→중분류 매핑 로드
-    const materialMapping = getMaterialMapping();
+    // 헤더에서 중분류 컬럼 인덱스 찾기
+    const header = rows[0];
+    let jungbunryuCol = -1;
+    for (let i = 0; i < header.length; i++) {
+      if (String(header[i]).includes('중분류')) { jungbunryuCol = i; break; }
+    }
 
     // Transform row: returns [data array, isPriceZero flag]
     function transformRow(row) {
@@ -908,17 +850,15 @@ function processOpenPO() {
       const unitPrice = parseFloat(row[19]) || 0;    // input T=단가
       const isPriceZero = unitPrice === 0;
       const backlog = parseFloat(row[10]) || 0;      // K=미납잔량
-      const material = String(row[7] || '').trim();   // H=자재
 
-      // 자재코드로 중분류 조회
-      const jungbunryu = materialMapping[material] || '';
+      // export 파일에서 직접 중분류코드 읽기
+      const jungbunryu = jungbunryuCol >= 0 ? String(row[jungbunryuCol] || '').trim() : '';
 
       let qPrice; // Q열 단가
       if (unitPrice > 0) {
-        // P에 단가가 있으면 → Q에 그대로 (KRW) 또는 환율 적용 (USD)
         qPrice = (currency === 'USD') ? unitPrice * exchangeRate : unitPrice;
       } else {
-        // P=0 → 중분류코드로 마스터 조회
+        // P=0 → 중분류코드로 마스터 단가 조회
         if (jungbunryu && masterData[jungbunryu]) {
           qPrice = masterData[jungbunryu];
         } else {
@@ -1084,19 +1024,13 @@ document.getElementById('openPoFile').addEventListener('change', function(e) {
   }
 });
 
-// Event listeners - Prev Open PO file (자재→중분류 매핑)
-document.getElementById('prevOpenPoFile').addEventListener('change', function(e) {
-  if (e.target.files.length > 0) processPrevOpenPO(e.target.files[0]);
-});
-
 // Event listeners - Master tab
 document.getElementById('masterFile').addEventListener('change', function(e) {
   if (e.target.files.length > 0) processMasterFile(e.target.files[0]);
 });
 
-// Init master status & mapping info
+// Init master status
 updateMasterStatusInfo();
-updateMappingInfo();
 </script>
 </body>
 </html>
